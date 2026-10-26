@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dual-Sensor IoT AI Controller Dashboard</title>
+    <!-- Chart.js CDN for real-time graphs -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --card-bg: #1e293b;
+            --border-color: #334155;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent-blue: #38bdf8;
+            --accent-green: #22c55e;
+            --accent-amber: #f59e0b;
+            --accent-red: #ef4444;
+            --accent-purple: #a855f7;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            padding: 24px;
+            min-height: 100vh;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 24px;
+        }
+
+        .header-title h1 {
+            font-size: 24px;
+            font-weight: 700;
+            background: linear-gradient(to right, #38bdf8, #a855f7);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header-title p {
+            color: var(--text-muted);
+            font-size: 14px;
+            margin-top: 4px;
+        }
+
+        .mode-toggle-box {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: var(--card-bg);
+            padding: 8px 16px;
+            border-radius: 9999px;
+            border: 1px solid var(--border-color);
+        }
+
+        .mode-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            padding: 6px 14px;
+            border-radius: 9999px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 13px;
+            transition: all 0.2s ease;
+        }
+
+        .mode-btn.active {
+            background: var(--accent-purple);
+            color: #fff;
+            box-shadow: 0 0 12px rgba(168, 85, 247, 0.4);
+        }
+
+        .mode-btn.classical.active {
+            background: var(--accent-amber);
+            color: #0f172a;
+            box-shadow: 0 0 12px rgba(245, 158, 11, 0.4);
+        }
+
+        .grid-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 18px;
+            margin-bottom: 24px;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 18px;
+            position: relative;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .card-label {
+            font-size: 13px;
+            color: var(--text-muted);
+            font-weight: 500;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .card-value {
+            font-size: 32px;
+            font-weight: 700;
+        }
+
+        .card-subtext {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 6px;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .badge-green { background: rgba(34, 197, 94, 0.2); color: var(--accent-green); }
+        .badge-amber { background: rgba(245, 158, 11, 0.2); color: var(--accent-amber); }
+        .badge-red { background: rgba(239, 68, 68, 0.2); color: var(--accent-red); }
+        .badge-blue { background: rgba(56, 189, 248, 0.2); color: var(--accent-blue); }
+
+        .led-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .led-dot {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #475569;
+            transition: all 0.3s ease;
+        }
+
+        .led-dot.active-green {
+            background: var(--accent-green);
+            box-shadow: 0 0 10px var(--accent-green);
+        }
+
+        .led-dot.active-red {
+            background: var(--accent-red);
+            box-shadow: 0 0 12px var(--accent-red);
+            animation: pulse 1s infinite alternate;
+        }
+
+        @keyframes pulse {
+            from { opacity: 0.6; }
+            to { opacity: 1; transform: scale(1.1); }
+        }
+
+        .banner {
+            padding: 14px 18px;
+            border-radius: 10px;
+            margin-bottom: 24px;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border: 1px solid transparent;
+        }
+
+        .banner-normal {
+            background: rgba(34, 197, 94, 0.1);
+            border-color: rgba(34, 197, 94, 0.3);
+            color: #86efac;
+        }
+
+        .banner-alert {
+            background: rgba(239, 68, 68, 0.15);
+            border-color: rgba(239, 68, 68, 0.4);
+            color: #fca5a5;
+        }
+
+        .chart-container {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 24px;
+            height: 380px;
+        }
+
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 14px;
+        }
+
+        .chart-header h3 {
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .footer {
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 12px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div class="header-title">
+            <h1>Dual-Sensor AI/ML Predictive IoT Controller</h1>
+            <p>Smart closed-loop actuation with proactive temperature forecasting & anomaly detection</p>
+        </div>
+        <div class="mode-toggle-box">
+            <span style="font-size: 12px; color: var(--text-muted);">Control Policy:</span>
+            <button id="btnAiMode" class="mode-btn active" onclick="setMode('AI_PREDICTIVE')">AI Predictive Mode</button>
+            <button id="btnClassicalMode" class="mode-btn classical" onclick="setMode('CLASSICAL')">Classical Threshold</button>
+        </div>
+    </div>
+
+    <!-- Live Status Banner -->
+    <div id="statusBanner" class="banner banner-normal">
+        <span id="bannerText">System Status: Optimal | AI Early Warning Active</span>
+        <span id="lastUpdated" style="font-size: 12px; opacity: 0.8;">Waiting for data...</span>
+    </div>
+
+    <!-- Cards Row -->
+    <div class="grid-cards">
+        <!-- Sensor 1 -->
+        <div class="card">
+            <div class="card-label">
+                <span>Sensor 1 (Node A)</span>
+                <span id="badgeS1" class="badge badge-blue">Normal</span>
+            </div>
+            <div class="card-value" id="valS1Temp">--.-°C</div>
+            <div class="card-subtext" id="valS1Hum">Humidity: --%</div>
+        </div>
+
+        <!-- Sensor 2 -->
+        <div class="card">
+            <div class="card-label">
+                <span>Sensor 2 (Node B)</span>
+                <span id="badgeS2" class="badge badge-blue">Normal</span>
+            </div>
+            <div class="card-value" id="valS2Temp">--.-°C</div>
+            <div class="card-subtext" id="valS2Hum">Humidity: --%</div>
+        </div>
+
+        <!-- AI Forecast (t+5) -->
+        <div class="card">
+            <div class="card-label">
+                <span>AI Predicted Temp (t+5)</span>
+                <span class="badge badge-purple" style="background: rgba(168,85,247,0.2); color: var(--accent-purple);">RF Regressor</span>
+            </div>
+            <div class="card-value" id="valPredictedTemp" style="color: var(--accent-purple);">--.-°C</div>
+            <div class="card-subtext" id="valPredictionDelta">Lead time: ~10 sec ahead</div>
+        </div>
+
+        <!-- Actuators (LED 1 & LED 2) -->
+        <div class="card">
+            <div class="card-label">
+                <span>Physical Actuators / LEDs</span>
+                <span id="badgeTrip" class="badge badge-green">Running</span>
+            </div>
+            <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;">
+                <div class="led-indicator">
+                    <div id="led1Dot" class="led-dot"></div>
+                    <span>LED 1 (Load / Fan): </span>
+                    <strong id="valLed1Text">OFF</strong>
+                </div>
+                <div class="led-indicator">
+                    <div id="led2Dot" class="led-dot"></div>
+                    <span>LED 2 (Trip / Alert): </span>
+                    <strong id="valLed2Text">OFF</strong>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Real-Time Chart -->
+    <div class="chart-container">
+        <div class="chart-header">
+            <h3>Real-Time Dual-Sensor Telemetry & AI Prediction Curve</h3>
+            <span style="font-size: 12px; color: var(--text-muted);">Trip Limit: 32.0°C | AI Preemptive Limit: 30.2°C</span>
+        </div>
+        <div style="position: relative; height: 300px; width: 100%;">
+            <canvas id="telemetryChart"></canvas>
+        </div>
+    </div>
+
+    <div class="footer">
+        Dual-Sensor Telemetry Lab System • Flask AI/ML Central Controller • Physical Arduino Serial Bridge
+    </div>
+
+    <script>
+        // Setup Chart.js
+        const ctx = document.getElementById('telemetryChart').getContext('2d');
+        const telemetryChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [
+                    {
+                        label: 'Sensor 1 (°C)',
+                        data: [],
+                        borderColor: '#38bdf8',
+                        backgroundColor: 'rgba(56, 189, 248, 0.1)',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 2
+                    },
+                    {
+                        label: 'Sensor 2 (°C)',
+                        data: [],
+                        borderColor: '#34d399',
+                        backgroundColor: 'rgba(52, 211, 153, 0.1)',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 2
+                    },
+                    {
+                        label: 'AI Forecast t+5 (°C)',
+                        data: [],
+                        borderColor: '#c084fc',
+                        borderDash: [5, 5],
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'Trip Threshold (32°C)',
+                        data: [],
+                        borderColor: '#ef4444',
+                        borderWidth: 1,
+                        borderDash: [2, 4],
+                        pointRadius: 0,
+                        fill: false
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: false,
+                scales: {
+                    x: {
+                        grid: { color: '#334155' },
+                        ticks: { color: '#94a3b8', maxTicksLimit: 12 }
+                    },
+                    y: {
+                        grid: { color: '#334155' },
+                        ticks: { color: '#94a3b8' },
+                        suggestedMin: 22,
+                        suggestedMax: 36
+                    }
+                },
+                plugins: {
+                    legend: {
+                        labels: { color: '#f8fafc', font: { size: 12 } }
+                    }
+                }
+            }
+        });
+
+        // Set Control Mode via API
+        async function setMode(mode) {
+            try {
+                const res = await fetch('/api/toggle-mode', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mode: mode })
+                });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    updateModeButtons(mode);
+                }
+            } catch (err) {
+                console.error("Error setting mode:", err);
+            }
+        }
+
+        function updateModeButtons(mode) {
+            const btnAi = document.getElementById('btnAiMode');
+            const btnClassical = document.getElementById('btnClassicalMode');
+            if (mode === 'AI_PREDICTIVE') {
+                btnAi.classList.add('active');
+                btnClassical.classList.remove('active');
+            } else {
+                btnClassical.classList.add('active');
+                btnAi.classList.remove('active');
+            }
+        }
+
+        // Live Poll Function
+        async function fetchStatus() {
+            try {
+                const res = await fetch('/api/live-status');
+                if (!res.ok) return;
+                const data = await res.json();
+
+                if (!data.latest) return;
+
+                const cur = data.latest;
+                updateModeButtons(cur.control_mode);
+
+                // Update Cards
+                document.getElementById('valS1Temp').textContent = cur.sensor_1_temp !== undefined ? cur.sensor_1_temp.toFixed(1) + '°C' : '--.-°C';
+                document.getElementById('valS1Hum').textContent = `Humidity: ${cur.sensor_1_hum || '--'}%`;
+
+                document.getElementById('valS2Temp').textContent = cur.sensor_2_temp !== undefined ? cur.sensor_2_temp.toFixed(1) + '°C' : '--.-°C';
+                document.getElementById('valS2Hum').textContent = `Humidity: ${cur.sensor_2_hum || '--'}%`;
+
+                document.getElementById('valPredictedTemp').textContent = cur.predicted_temp !== undefined ? cur.predicted_temp.toFixed(1) + '°C' : '--.-°C';
+
+                // Actuators
+                const led1Active = cur.led_1 === 1;
+                const led2Active = cur.led_2 === 1;
+
+                document.getElementById('valLed1Text').textContent = led1Active ? 'ON' : 'OFF';
+                document.getElementById('valLed2Text').textContent = led2Active ? 'ON' : 'OFF';
+
+                const led1Dot = document.getElementById('led1Dot');
+                const led2Dot = document.getElementById('led2Dot');
+
+                led1Dot.className = 'led-dot ' + (led1Active ? 'active-green' : '');
+                led2Dot.className = 'led-dot ' + (led2Active ? 'active-red' : '');
+
+                // Trip badge
+                const badgeTrip = document.getElementById('badgeTrip');
+                if (cur.tripped) {
+                    badgeTrip.textContent = 'TRIPPED';
+                    badgeTrip.className = 'badge badge-red';
+                } else {
+                    badgeTrip.textContent = 'Normal';
+                    badgeTrip.className = 'badge badge-green';
+                }
+
+                // Banner
+                const banner = document.getElementById('statusBanner');
+                const bannerText = document.getElementById('bannerText');
+                if (cur.is_anomaly || cur.tripped) {
+                    banner.className = 'banner banner-alert';
+                    bannerText.textContent = `⚠️ ALERT: ${cur.anomaly_reason || (cur.tripped ? 'System Overheat Tripped' : 'Anomaly')}`;
+                } else {
+                    banner.className = 'banner banner-normal';
+                    bannerText.textContent = `✅ ${cur.recommendation || 'System Healthy • AI Control Active'}`;
+                }
+
+                document.getElementById('lastUpdated').textContent = new Date().toLocaleTimeString();
+
+                // Update Chart
+                if (data.history && data.history.length > 0) {
+                    const labels = data.history.map(item => item.time_str);
+                    const s1_data = data.history.map(item => item.sensor_1_temp);
+                    const s2_data = data.history.map(item => item.sensor_2_temp);
+                    const pred_data = data.history.map(item => item.predicted_temp);
+                    const trip_data = data.history.map(() => 32.0);
+
+                    telemetryChart.data.labels = labels;
+                    telemetryChart.data.datasets[0].data = s1_data;
+                    telemetryChart.data.datasets[1].data = s2_data;
+                    telemetryChart.data.datasets[2].data = pred_data;
+                    telemetryChart.data.datasets[3].data = trip_data;
+                    telemetryChart.update();
+                }
+
+            } catch (err) {
+                console.error("Polling error:", err);
+            }
+        }
+
+        // Poll every 1 second
+        setInterval(fetchStatus, 1000);
+        fetchStatus();
+    </script>
+</body>
+</html>
