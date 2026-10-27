@@ -344,13 +344,13 @@ class MLEngine:
                 # Hold setpoint tightly: prefer u=0 unless coasting forecast drops below band
                 if pred_if_off < (self.target_temp - 0.15) and pred_if_on <= (self.target_temp + 0.35):
                     led_1 = 1
-                    rec_text = f"🎯 TARGET REGULATING: Applying micro-pulse to sustain {self.target_temp}°C."
+                    rec_text = f"TARGET REGULATING: Applying micro-pulse to sustain {self.target_temp}°C."
                 elif pred_if_off > (self.target_temp + 0.15) or temp_delta > 0.05:
                     led_1 = 0
-                    rec_text = f"🎯 TARGET LOCKED ({self.target_temp}°C): AI coasting load to prevent overshoot."
+                    rec_text = f"TARGET LOCKED ({self.target_temp}°C): AI coasting load to prevent overshoot."
                 else:
                     led_1 = 0
-                    rec_text = f"🎯 TARGET ACHIEVED ({temperature:.1f}°C): Operating precisely at {self.target_temp}°C setpoint."
+                    rec_text = f"TARGET ACHIEVED ({temperature:.1f}°C): Operating precisely at {self.target_temp}°C setpoint."
             elif temperature < self.target_temp:
                 # Below target: shut off early ONLY when approaching with positive momentum
                 # and XGBoost predicts residual inertia will coast into target (or ON would overshoot)

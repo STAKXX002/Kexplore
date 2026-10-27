@@ -4,136 +4,177 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Multi-Modal AI IoT Controller</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/css/dashboard.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
 
     <div class="dashboard-container">
-        <!-- Header -->
-        <div class="header">
-            <div class="header-title">
-                <h1>Multi-Modal AI IoT Controller</h1>
-                <p>AI Model Predictive Target Tracking • Solar-Thermal Cross-Forecasting • Neural Anomaly Safeguard</p>
+        <!-- Top Navigation Bar -->
+        <header class="header">
+            <div class="header-brand">
+                <div class="brand-title-wrap">
+                    <h1>Multi-Modal AI IoT Controller</h1>
+                    <span class="brand-badge">MPC · Autoencoder</span>
+                </div>
+                <p class="brand-subtitle">Autonomous Predictive Setpoint Tracking &amp; Neural Safeguard</p>
             </div>
+            
             <div class="header-right">
-                <div class="link-pill" title="Telemetry link heartbeat">
+                <div class="link-pill" title="Telemetry hardware link heartbeat">
                     <div id="pulseDot" class="pulse-dot"></div>
-                    <span id="linkText">No data</span>
-                    <span id="tagS1" class="sensor-tag none" title="Sensor 1: Temperature">S1</span>
-                    <span id="tagS2" class="sensor-tag none" title="Sensor 2: Light / LDR">S2</span>
+                    <span id="linkText" class="link-status">Connecting...</span>
+                    <span class="sensor-divider"></span>
+                    <span id="tagS1" class="sensor-tag none" title="Sensor 1: Temperature (DS18B20/LM35)">S1: Temp</span>
+                    <span id="tagS2" class="sensor-tag none" title="Sensor 2: Illumination (LDR)">S2: Light</span>
                 </div>
-                <span class="badge badge-purple" style="font-size: 11px; padding: 4px 10px;">AI Mode</span>
-                <button class="btn-ghost" onclick="openSummary()">📊 Session Summary</button>
-                <a class="btn-ghost" href="/api/export-csv">📥 Export CSV</a>
+
+                <div class="mode-indicator" title="Supervisory Mode">
+                    <span class="mode-dot"></span>
+                    <span>AI Supervisory MPC</span>
+                </div>
+
+                <div class="header-actions">
+                    <button class="btn-ghost" onclick="openSummary()" title="View session analytics">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
+                        <span>Summary</span>
+                    </button>
+                    <a class="btn-ghost" href="/api/export-csv" title="Download runtime telemetry CSV">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        <span>Export CSV</span>
+                    </a>
+                </div>
+            </div>
+        </header>
+
+        <!-- Ambient System Status Strip -->
+        <div id="statusBanner" class="banner banner-normal">
+            <div class="banner-left">
+                <span class="banner-icon-dot"></span>
+                <span id="bannerText">System Status: Regulating toward Target Setpoint...</span>
+            </div>
+            <div class="banner-right">
+                <span class="timestamp-label">LAST SYNC</span>
+                <span id="lastUpdated" class="timestamp-val">Syncing...</span>
             </div>
         </div>
 
-        <!-- Status Banner -->
-        <div id="statusBanner" class="banner banner-normal">
-            <span id="bannerText">System Status: Regulating toward Target Setpoint...</span>
-            <span id="lastUpdated" style="font-size: 11px; opacity: 0.8;">Syncing...</span>
-        </div>
-
-        <!-- 4 Balanced Metric Cards -->
+        <!-- Primary Telemetry Metric Cards -->
         <div class="grid-cards">
-            <!-- Card 1: Temperature Sensor & Goal Target -->
+            <!-- Card 1: Temperature Sensor -->
             <div class="card">
-                <div class="card-label">
-                    <span>Temperature Sensor</span>
-                    <span class="badge badge-green" id="badgeTargetOffset">Target: 27.0°C</span>
+                <div class="card-header">
+                    <span class="card-eyebrow">Temperature Sensor</span>
+                    <span class="badge badge-neutral" id="badgeTargetOffset">Target: 27.0°C</span>
                 </div>
-                <div class="card-value" id="valTemp">--.-°C</div>
+                <div class="card-metric">
+                    <span class="card-value font-mono" id="valTemp">--.-°C</span>
+                </div>
                 <div class="card-footer">
-                    <span id="subtextTempTrip">🎯 Setpoint: 27.0°C</span>
-                    <div class="led-pill">
-                        <div id="led1Dot" class="led-dot"></div>
-                        <span>Thermal Load: <strong id="valLed1">OFF</strong></span>
+                    <span id="subtextTempTrip" class="footer-meta font-mono">Setpoint: 27.0°C</span>
+                    <div class="actuator-pill">
+                        <div id="led1Dot" class="actuator-dot"></div>
+                        <span class="footer-meta">Thermal Load: <strong id="valLed1" class="font-mono">OFF</strong></span>
                     </div>
                 </div>
             </div>
 
-            <!-- Card 2: Light / LDR Sensor & Illumination Target -->
+            <!-- Card 2: Light Sensor -->
             <div class="card">
-                <div class="card-label">
-                    <span>Light (LDR) Sensor</span>
-                    <span class="badge badge-amber" id="badgeLightTarget">Target: 50%</span>
+                <div class="card-header">
+                    <span class="card-eyebrow">Ambient Light (LDR)</span>
+                    <span class="badge badge-neutral" id="badgeLightTarget">Target: 50%</span>
                 </div>
-                <div class="card-value" id="valLight">--.-%</div>
+                <div class="card-metric">
+                    <span class="card-value font-mono" id="valLight">--.-%</span>
+                </div>
                 <div class="card-footer">
-                    <span id="subtextLight">Harvesting: --</span>
-                    <div class="led-pill">
-                        <div id="led2Dot" class="led-dot"></div>
-                        <span>Light: <strong id="valLed2">OFF</strong></span>
+                    <span id="subtextLight" class="footer-meta">Harvesting: --</span>
+                    <div class="actuator-pill">
+                        <div id="led2Dot" class="actuator-dot"></div>
+                        <span class="footer-meta">Aux Light: <strong id="valLed2" class="font-mono">OFF</strong></span>
                     </div>
                 </div>
             </div>
 
             <!-- Card 3: XGBoost Predictive Forecaster -->
             <div class="card">
-                <div class="card-label">
-                    <span>XGBoost Forecast (t+5)</span>
-                    <span class="badge badge-purple">MPC Foresight</span>
+                <div class="card-header">
+                    <span class="card-eyebrow">XGBoost Forecast (t+5)</span>
+                    <span class="badge badge-indigo">Inertia MPC</span>
                 </div>
-                <div class="card-value" id="valPredTemp" style="color: var(--accent-purple);">--.-°C</div>
+                <div class="card-metric">
+                    <span class="card-value font-mono text-indigo" id="valPredTemp">--.-°C</span>
+                </div>
                 <div class="card-footer">
-                    <span>Anticipates inertia</span>
-                    <span class="badge badge-purple" id="badgePreempt" style="font-size: 10px;">Preempt: 30.2°C</span>
+                    <span class="footer-meta">Predictive horizon</span>
+                    <span class="badge badge-neutral font-mono" id="badgePreempt">Preempt: 30.2°C</span>
                 </div>
             </div>
 
             <!-- Card 4: PyTorch Deep Autoencoder -->
             <div class="card">
-                <div class="card-label">
-                    <span>Autoencoder Anomaly Loss</span>
-                    <span id="badgeLoss" class="badge badge-pink">Neural MSE</span>
+                <div class="card-header">
+                    <span class="card-eyebrow">Autoencoder Residual</span>
+                    <span id="badgeLoss" class="badge badge-neutral font-mono">MSE Loss</span>
                 </div>
-                <div class="card-value" id="valReconLoss" style="color: var(--accent-pink);">0.0000</div>
+                <div class="card-metric">
+                    <span class="card-value font-mono" id="valReconLoss">0.0000</span>
+                </div>
                 <div class="card-footer">
-                    <span id="subtextRecon">Threshold: 0.2409</span>
-                    <span id="badgeHealth" class="badge badge-green">Healthy</span>
+                    <span id="subtextRecon" class="footer-meta font-mono">Limit: 0.2409</span>
+                    <span id="badgeHealth" class="badge badge-emerald">Healthy</span>
                 </div>
             </div>
         </div>
 
         <!-- AI Performance Ribbon -->
         <div class="perf-bar">
-            <div class="perf-item" title="Share of load-ON time the AI avoided compared with a classical thermostat evaluated on the same temperature readings (AI-mode samples only).">
-                <div class="perf-value" id="perfDuty" style="color: var(--accent-green);">--</div>
+            <div class="perf-item" title="Actuation duty cycle avoided compared to classical thermostat">
+                <div class="perf-value font-mono text-emerald" id="perfDuty">--</div>
                 <div class="perf-text">
                     <span class="perf-label">Load Duty Saved</span>
-                    <span class="perf-sub" id="perfDutySub">AI vs shadow thermostat</span>
+                    <span class="perf-sub font-mono" id="perfDutySub">vs. classical thermostat</span>
                 </div>
             </div>
-            <div class="perf-item" title="Share of the last 100 samples within ±0.35°C of the target setpoint.">
-                <div class="perf-value" id="perfStability" style="color: var(--accent-cyan);">--</div>
+            <div class="perf-item" title="Fraction of samples held strictly within ±0.35°C setpoint band">
+                <div class="perf-value font-mono text-sky" id="perfStability">--</div>
                 <div class="perf-text">
                     <span class="perf-label">Setpoint Stability</span>
-                    <span class="perf-sub" id="perfStabilitySub">within ±0.35°C band</span>
+                    <span class="perf-sub font-mono" id="perfStabilitySub">within ±0.35°C band</span>
                 </div>
             </div>
-            <div class="perf-item" title="Average server-side time for feature engineering + XGBoost + Autoencoder + control policy (last 20 samples).">
-                <div class="perf-value" id="perfLatency" style="color: var(--accent-purple);">--</div>
+            <div class="perf-item" title="Average execution latency per telemetry cycle">
+                <div class="perf-value font-mono text-slate" id="perfLatency">--</div>
                 <div class="perf-text">
                     <span class="perf-label">AI Inference Latency</span>
-                    <span class="perf-sub">XGBoost + Autoencoder + policy</span>
+                    <span class="perf-sub font-mono">XGBoost + PyTorch Autoencoder</span>
                 </div>
             </div>
-            <div class="perf-item" title="Rate of temperature change over the last few samples.">
-                <div class="perf-value" id="perfMomentum" style="color: var(--accent-amber);">--</div>
+            <div class="perf-item" title="Instantaneous temperature derivative dT/dt">
+                <div class="perf-value font-mono text-amber" id="perfMomentum">--</div>
                 <div class="perf-text">
                     <span class="perf-label">Thermal Momentum</span>
-                    <span class="perf-sub" id="perfMomentumSub">dT/dt (°C per minute)</span>
+                    <span class="perf-sub font-mono" id="perfMomentumSub">dT/dt (°C / min)</span>
                 </div>
             </div>
         </div>
 
-        <!-- Real-Time Chart + Audit Trail -->
+        <!-- Telemetry Chart & Event Audit Trail -->
         <div class="main-row">
             <div class="chart-box">
                 <div class="chart-header">
-                    <h3>Real-Time Telemetry, AI Goal Target &amp; Trip Lines</h3>
-                    <span style="font-size: 11px; color: var(--text-muted);">Left: Temp (°C) | Right: Light (%)</span>
+                    <div>
+                        <h3 class="box-title">Telemetry &amp; Trajectory Tracking</h3>
+                        <p class="box-subtitle">Dual-axis historical trendline with dynamic predictive horizon</p>
+                    </div>
+                    <div class="chart-axis-legend">
+                        <span class="axis-pill axis-temp">Temp (°C)</span>
+                        <span class="axis-pill axis-light">Light (%)</span>
+                    </div>
                 </div>
                 <div class="chart-canvas-wrap">
                     <canvas id="multiChart"></canvas>
@@ -142,58 +183,84 @@
 
             <div class="audit-box">
                 <div class="chart-header">
-                    <h3>📋 Event Audit Trail</h3>
-                    <span style="font-size: 10px; color: var(--text-muted);" id="auditCount">0 events</span>
+                    <div>
+                        <h3 class="box-title">System Audit Log</h3>
+                        <p class="box-subtitle">Telemetry events, MPC actions &amp; trips</p>
+                    </div>
+                    <span class="badge badge-neutral font-mono" id="auditCount">0 events</span>
                 </div>
                 <div class="audit-list" id="auditList"></div>
             </div>
         </div>
 
-        <!-- Sleek Dynamic Target & Threshold Toolbar -->
+        <!-- Target Setpoint & Safety Limits Control Toolbar -->
         <div class="threshold-bar">
-            <div class="threshold-title">
-                <span>🎯 Target Setpoints & Safety Limits:</span>
-                <span class="badge badge-green" id="badgeActiveTarget">Target: 27.0°C</span>
-                <span class="badge badge-cyan" id="badgeActiveTrip">Trip: 32.0°C</span>
+            <div class="threshold-header">
+                <div class="threshold-title-group">
+                    <span class="control-label">Setpoint &amp; Safety Configuration</span>
+                    <span class="badge badge-neutral font-mono" id="badgeActiveTarget">Target: 27.0°C</span>
+                    <span class="badge badge-neutral font-mono" id="badgeActiveTrip">Trip: 32.0°C</span>
+                </div>
+                <div id="toastThreshold" class="toast-inline"></div>
             </div>
+
             <div class="threshold-inputs-group">
                 <div class="input-item">
-                    <label for="inputTargetTemp">🎯 Target Temp (°C):</label>
-                    <input type="number" id="inputTargetTemp" step="0.1" value="27.0">
+                    <label for="inputTargetTemp">Target Temp</label>
+                    <div class="input-field-wrap">
+                        <input type="number" id="inputTargetTemp" step="0.1" value="27.0">
+                        <span class="input-unit">°C</span>
+                    </div>
                 </div>
                 <div class="input-item">
-                    <label for="inputTargetLight">Target Light (%):</label>
-                    <input type="number" id="inputTargetLight" step="1.0" value="50.0">
+                    <label for="inputTargetLight">Target Light</label>
+                    <div class="input-field-wrap">
+                        <input type="number" id="inputTargetLight" step="1.0" value="50.0">
+                        <span class="input-unit">%</span>
+                    </div>
                 </div>
                 <div class="input-item">
-                    <label for="inputTempTrip">Trip Limit (°C):</label>
-                    <input type="number" id="inputTempTrip" step="0.1" value="32.0">
+                    <label for="inputTempTrip">Emergency Trip</label>
+                    <div class="input-field-wrap">
+                        <input type="number" id="inputTempTrip" step="0.1" value="32.0">
+                        <span class="input-unit">°C</span>
+                    </div>
                 </div>
                 <div class="input-item">
-                    <label for="inputAiCooling">AI Preempt (°C):</label>
-                    <input type="number" id="inputAiCooling" step="0.1" value="30.2">
+                    <label for="inputAiCooling">AI Preempt</label>
+                    <div class="input-field-wrap">
+                        <input type="number" id="inputAiCooling" step="0.1" value="30.2">
+                        <span class="input-unit">°C</span>
+                    </div>
                 </div>
-                <button class="btn-apply" onclick="submitThresholds()">Apply</button>
-                <div id="toastThreshold" class="toast-inline"></div>
+                <button class="btn-apply" onclick="submitThresholds()">
+                    <span>Apply</span>
+                </button>
             </div>
         </div>
 
-        <div class="footer">
-            Multi-Modal AI IoT Controller • XGBoost Model Predictive Control • PyTorch Deep Autoencoder Neural Network
-        </div>
+        <footer class="footer">
+            <span>Multi-Modal AI IoT Telemetry &amp; Actuation Controller</span>
+            <span class="footer-sep">•</span>
+            <span>XGBoost Model Predictive Control</span>
+            <span class="footer-sep">•</span>
+            <span>PyTorch Deep Autoencoder Residual Classifier</span>
+        </footer>
     </div>
 
     <!-- Session Summary Modal -->
     <div class="modal-backdrop" id="summaryModal" onclick="if (event.target === this) closeSummary()">
         <div class="modal">
-            <h3>📊 Lab Run Summary</h3>
+            <div class="modal-header">
+                <h3>Session Analytics Summary</h3>
+                <button class="modal-close-btn" onclick="closeSummary()" aria-label="Close">✕</button>
+            </div>
             <div class="summary-grid" id="summaryGrid"></div>
             <div class="modal-note">
-                Load duty saved compares the AI's LED 1 on-time with what a classical thermostat
-                would have commanded at the same temperature readings.
+                Load duty saved measures thermal load reduction achieved by XGBoost predictive trajectory estimation compared to classical thermostat bang-bang control.
             </div>
             <div class="modal-actions">
-                <a class="btn-ghost" href="/api/export-csv">📥 Download CSV</a>
+                <a class="btn-ghost" href="/api/export-csv">Download CSV</a>
                 <button class="btn-apply" onclick="closeSummary()">Close</button>
             </div>
         </div>

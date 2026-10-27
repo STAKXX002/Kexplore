@@ -10,19 +10,21 @@ const multiChart = new Chart(ctx, {
             {
                 label: 'Temperature (°C)',
                 data: [],
-                borderColor: '#06b6d4',
-                backgroundColor: 'rgba(6, 182, 212, 0.08)',
-                borderWidth: 2,
+                borderColor: '#38bdf8',
+                backgroundColor: 'rgba(56, 189, 248, 0.04)',
+                fill: true,
+                borderWidth: 1.8,
                 tension: 0.3,
                 pointRadius: 2,
+                pointHoverRadius: 4,
                 yAxisID: 'y'
             },
             {
                 label: 'XGBoost Predicted (t+5)',
                 data: [],
-                borderColor: '#8b5cf6',
-                borderDash: [5, 5],
-                borderWidth: 2,
+                borderColor: '#818cf8',
+                borderDash: [4, 4],
+                borderWidth: 1.6,
                 tension: 0.3,
                 pointRadius: 0,
                 yAxisID: 'y'
@@ -31,26 +33,26 @@ const multiChart = new Chart(ctx, {
                 label: 'Light Level (%)',
                 data: [],
                 borderColor: '#f59e0b',
-                borderWidth: 1.8,
+                borderWidth: 1.5,
                 tension: 0.3,
                 pointRadius: 1,
                 yAxisID: 'y1'
             },
             {
-                label: '🎯 Goal Target (27°C)',
+                label: 'Setpoint (27°C)',
                 data: [],
                 borderColor: '#10b981',
-                borderDash: [6, 4],
-                borderWidth: 2,
+                borderDash: [5, 4],
+                borderWidth: 1.5,
                 pointRadius: 0,
                 yAxisID: 'y'
             },
             {
-                label: 'Emergency Trip (32°C)',
+                label: 'Trip Limit (32°C)',
                 data: [],
-                borderColor: '#ef4444',
-                borderDash: [2, 4],
-                borderWidth: 1.5,
+                borderColor: '#f43f5e',
+                borderDash: [3, 3],
+                borderWidth: 1.2,
                 pointRadius: 0,
                 yAxisID: 'y'
             }
@@ -60,18 +62,34 @@ const multiChart = new Chart(ctx, {
         responsive: true,
         maintainAspectRatio: false,
         animation: false,
+        interaction: {
+            mode: 'index',
+            intersect: false
+        },
         scales: {
             x: {
-                grid: { color: '#1e293b' },
-                ticks: { color: '#94a3b8', maxTicksLimit: 12, font: { size: 10 } }
+                grid: { color: 'rgba(255, 255, 255, 0.04)' },
+                ticks: {
+                    color: '#64748b',
+                    maxTicksLimit: 12,
+                    font: { family: "'JetBrains Mono', monospace", size: 10 }
+                }
             },
             y: {
                 type: 'linear',
                 display: true,
                 position: 'left',
-                title: { display: true, text: 'Temp (°C)', color: '#06b6d4', font: { size: 11 } },
-                grid: { color: '#1e293b' },
-                ticks: { color: '#94a3b8', font: { size: 10 } },
+                title: {
+                    display: true,
+                    text: 'Temp (°C)',
+                    color: '#38bdf8',
+                    font: { family: "'Inter', sans-serif", size: 11, weight: '500' }
+                },
+                grid: { color: 'rgba(255, 255, 255, 0.04)' },
+                ticks: {
+                    color: '#64748b',
+                    font: { family: "'JetBrains Mono', monospace", size: 10 }
+                },
                 suggestedMin: 22,
                 suggestedMax: 35
             },
@@ -79,15 +97,40 @@ const multiChart = new Chart(ctx, {
                 type: 'linear',
                 display: true,
                 position: 'right',
-                title: { display: true, text: 'Light (%)', color: '#f59e0b', font: { size: 11 } },
+                title: {
+                    display: true,
+                    text: 'Light (%)',
+                    color: '#f59e0b',
+                    font: { family: "'Inter', sans-serif", size: 11, weight: '500' }
+                },
                 grid: { drawOnChartArea: false },
-                ticks: { color: '#f59e0b', font: { size: 10 } },
+                ticks: {
+                    color: '#f59e0b',
+                    font: { family: "'JetBrains Mono', monospace", size: 10 }
+                },
                 suggestedMin: 0,
                 suggestedMax: 100
             }
         },
         plugins: {
-            legend: { labels: { color: '#f8fafc', font: { size: 11 } } }
+            legend: {
+                labels: {
+                    color: '#94a3b8',
+                    font: { family: "'Inter', sans-serif", size: 11, weight: '500' },
+                    boxWidth: 12,
+                    boxHeight: 6,
+                    padding: 12
+                }
+            },
+            tooltip: {
+                backgroundColor: '#10141f',
+                borderColor: 'rgba(255, 255, 255, 0.1)',
+                borderWidth: 1,
+                titleFont: { family: "'Inter', sans-serif", size: 11 },
+                bodyFont: { family: "'JetBrains Mono', monospace", size: 11 },
+                padding: 10,
+                cornerRadius: 6
+            }
         }
     }
 });
@@ -116,22 +159,24 @@ async function submitThresholds() {
             currentTargetTemp = data.thresholds.target_temp;
             currentTripThreshold = data.thresholds.temp_trip_threshold;
 
-            multiChart.data.datasets[3].label = `🎯 Goal Target (${currentTargetTemp}°C)`;
-            multiChart.data.datasets[4].label = `Emergency Trip (${currentTripThreshold}°C)`;
+            multiChart.data.datasets[3].label = `Setpoint (${currentTargetTemp}°C)`;
+            multiChart.data.datasets[4].label = `Trip Limit (${currentTripThreshold}°C)`;
 
             toast.style.display = 'inline-block';
-            toast.style.background = 'rgba(16, 185, 129, 0.2)';
-            toast.style.color = '#6ee7b7';
-            toast.textContent = `Applied! Target: ${currentTargetTemp}°C`;
+            toast.style.background = 'rgba(16, 185, 129, 0.12)';
+            toast.style.color = '#34d399';
+            toast.style.border = '1px solid rgba(16, 185, 129, 0.25)';
+            toast.textContent = `Applied: Setpoint ${currentTargetTemp}°C`;
             document.getElementById('badgeActiveTarget').textContent = `Target: ${currentTargetTemp}°C`;
             document.getElementById('badgeActiveTrip').textContent = `Trip: ${currentTripThreshold}°C`;
             setTimeout(() => { toast.style.display = 'none'; }, 3000);
         }
     } catch (err) {
         toast.style.display = 'inline-block';
-        toast.style.background = 'rgba(239, 68, 68, 0.2)';
-        toast.style.color = '#fca5a5';
-        toast.textContent = 'Error updating target';
+        toast.style.background = 'rgba(244, 63, 94, 0.12)';
+        toast.style.color = '#fb7185';
+        toast.style.border = '1px solid rgba(244, 63, 94, 0.25)';
+        toast.textContent = 'Configuration update failed';
     }
 }
 
@@ -152,21 +197,21 @@ function renderHeartbeat(hb, health) {
     const text = document.getElementById('linkText');
     dot.className = 'pulse-dot ' + (hb.status === 'LIVE' ? 'live' : (hb.status === 'STALE' ? 'stale' : ''));
 
-    let src = 'No data';
+    let src = 'Awaiting Link';
     if (hb.source) {
         if (hb.source.startsWith('arduino:')) src = `Arduino ${hb.source.split(':')[1]}`;
         else if (hb.source === 'simulator') src = 'Simulator';
-        else src = 'HTTP client';
+        else src = 'HTTP Stream';
     }
     if (hb.status === 'LIVE') {
-        text.textContent = `${src} • ${hb.rate_hz ? hb.rate_hz.toFixed(2) + ' Hz' : 'syncing'}`;
+        text.textContent = `${src} • ${hb.rate_hz ? hb.rate_hz.toFixed(2) + ' Hz' : 'Syncing'}`;
     } else if (hb.status === 'STALE') {
-        text.textContent = `${src} • no packets for ${Math.round(hb.last_seen_s)}s`;
+        text.textContent = `${src} • Idle (${Math.round(hb.last_seen_s)}s)`;
     } else {
-        text.textContent = 'No data';
+        text.textContent = 'Awaiting Source';
     }
 
-    [['tagS1', health.sensor_1, 'Sensor 1 (Temperature)'], ['tagS2', health.sensor_2, 'Sensor 2 (Light/LDR)']].forEach(([id, status, name]) => {
+    [['tagS1', health.sensor_1, 'Sensor 1 (Temperature)'], ['tagS2', health.sensor_2, 'Sensor 2 (Illumination)']].forEach(([id, status, name]) => {
         const el = document.getElementById(id);
         el.className = 'sensor-tag ' + (status === 'Healthy' ? 'ok' : (status === 'No data' ? 'none' : 'bad'));
         el.title = `${name}: ${status}`;
@@ -176,8 +221,8 @@ function renderHeartbeat(hb, health) {
 function renderPerformance(p) {
     document.getElementById('perfDuty').textContent = p.duty_saved_pct === null ? '--' : `${p.duty_saved_pct > 0 ? '+' : ''}${p.duty_saved_pct.toFixed(1)}%`;
     document.getElementById('perfDutySub').textContent = (p.ai_duty_pct !== null && p.shadow_duty_pct !== null)
-        ? `AI ${p.ai_duty_pct.toFixed(0)}% vs thermostat ${p.shadow_duty_pct.toFixed(0)}% on-time`
-        : 'AI vs shadow thermostat';
+        ? `AI ${p.ai_duty_pct.toFixed(0)}% vs. thermostat ${p.shadow_duty_pct.toFixed(0)}%`
+        : 'vs. classical thermostat';
 
     document.getElementById('perfStability').textContent = fmt(p.stability_pct, '%');
     document.getElementById('perfStabilitySub').textContent = `within ±${p.stability_band}°C (last ${p.stability_samples})`;
@@ -185,14 +230,13 @@ function renderPerformance(p) {
     document.getElementById('perfLatency').textContent = fmt(p.latency_ms, ' ms', 2);
 
     const m = p.momentum_c_per_min;
-    const arrow = m === null ? '' : (m > 0.05 ? ' ▲' : (m < -0.05 ? ' ▼' : ' ►'));
-    document.getElementById('perfMomentum').textContent = m === null ? '--' : `${m > 0 ? '+' : ''}${m.toFixed(2)}${arrow}`;
+    document.getElementById('perfMomentum').textContent = (m === null || Math.abs(m) > 50) ? '--' : `${m > 0 ? '+' : ''}${m.toFixed(2)}`;
 }
 
 function renderEvents(events) {
     document.getElementById('auditCount').textContent = `${events.length} event${events.length === 1 ? '' : 's'}`;
     const key = events.length ? `${events.length}|${events[0].time}|${events[0].message}` : '';
-    if (key === lastEventKey) return;  // avoid re-rendering (keeps scroll position)
+    if (key === lastEventKey) return;
     lastEventKey = key;
 
     document.getElementById('auditList').innerHTML = events.map(e => `
@@ -218,15 +262,15 @@ function formatDuration(s) {
 
 function renderSummary(s) {
     const rows = [
-        ['Run duration', formatDuration(s.runtime_s)],
-        ['Telemetry packets', s.packets],
-        ['Average temperature', fmt(s.avg_temp, ' °C', 2)],
-        ['Average light', fmt(s.avg_light, ' %')],
-        ['Setpoint stability', fmt(s.stability_pct, ' %')],
-        ['Anomaly events', s.anomaly_events],
-        ['Emergency trips', s.trip_events],
-        ['Load duty saved vs thermostat', fmt(s.duty_saved_pct, ' %')],
-        ['Avg AI latency', fmt(s.latency_ms, ' ms', 2)]
+        ['Session Duration', formatDuration(s.runtime_s)],
+        ['Telemetry Packets', s.packets],
+        ['Mean Temperature', fmt(s.avg_temp, ' °C', 2)],
+        ['Mean Illumination', fmt(s.avg_light, ' %')],
+        ['Setpoint Stability', fmt(s.stability_pct, ' %')],
+        ['Anomaly Detections', s.anomaly_events],
+        ['Emergency Trips', s.trip_events],
+        ['Load Duty Avoided (vs. Thermostat)', fmt(s.duty_saved_pct, ' %')],
+        ['Mean Inference Latency', fmt(s.latency_ms, ' ms', 2)]
     ];
     document.getElementById('summaryGrid').innerHTML = rows.map(([k, v]) => `<span>${k}</span><span>${v}</span>`).join('');
 }
@@ -258,13 +302,13 @@ async function fetchStatus() {
 
             document.getElementById('badgeActiveTarget').textContent = `Target: ${currentTargetTemp}°C`;
             document.getElementById('badgeActiveTrip').textContent = `Trip: ${currentTripThreshold}°C`;
-            document.getElementById('subtextTempTrip').textContent = `🎯 Goal: ${currentTargetTemp}°C | Trip: ${currentTripThreshold}°C`;
+            document.getElementById('subtextTempTrip').textContent = `Setpoint: ${currentTargetTemp}°C | Trip: ${currentTripThreshold}°C`;
             document.getElementById('badgeLightTarget').textContent = `Target: ${data.thresholds.target_light || 50}%`;
             document.getElementById('badgePreempt').textContent = `Preempt: ${data.thresholds.ai_cooling_threshold}°C`;
-            document.getElementById('subtextRecon').textContent = `Threshold: ${data.thresholds.recon_threshold.toFixed(4)}`;
+            document.getElementById('subtextRecon').textContent = `Limit: ${data.thresholds.recon_threshold.toFixed(4)}`;
 
-            multiChart.data.datasets[3].label = `🎯 Goal Target (${currentTargetTemp}°C)`;
-            multiChart.data.datasets[4].label = `Emergency Trip (${currentTripThreshold}°C)`;
+            multiChart.data.datasets[3].label = `Setpoint (${currentTargetTemp}°C)`;
+            multiChart.data.datasets[4].label = `Trip Limit (${currentTripThreshold}°C)`;
 
             if (!isInputsInitialized) {
                 document.getElementById('inputTargetTemp').value = currentTargetTemp;
@@ -285,18 +329,18 @@ async function fetchStatus() {
         const badgeTargetOffset = document.getElementById('badgeTargetOffset');
         const tempErr = cur.temperature !== undefined ? (cur.temperature - currentTargetTemp).toFixed(1) : 0;
         if (Math.abs(tempErr) <= 0.35) {
-            badgeTargetOffset.className = 'badge badge-green';
-            badgeTargetOffset.textContent = `🎯 At Target (${currentTargetTemp}°C)`;
+            badgeTargetOffset.className = 'badge badge-emerald';
+            badgeTargetOffset.textContent = `At Setpoint (${currentTargetTemp}°C)`;
         } else if (tempErr > 0) {
             badgeTargetOffset.className = 'badge badge-amber';
-            badgeTargetOffset.textContent = `▲ +${tempErr}°C to Target`;
+            badgeTargetOffset.textContent = `+${tempErr}°C vs Target`;
         } else {
-            badgeTargetOffset.className = 'badge badge-cyan';
-            badgeTargetOffset.textContent = `▼ ${tempErr}°C to Target`;
+            badgeTargetOffset.className = 'badge badge-sky';
+            badgeTargetOffset.textContent = `${tempErr}°C vs Target`;
         }
 
         document.getElementById('subtextLight').textContent = cur.light < (data.thresholds ? data.thresholds.target_light : 50.0) 
-            ? 'Below target (LED 2 ON)' : 'Target met (LED 2 OFF)';
+            ? 'Below target (Aux ON)' : 'Target met (Aux OFF)';
 
         document.getElementById('valPredTemp').textContent = cur.predicted_temp !== undefined ? cur.predicted_temp.toFixed(1) + '°C' : '--.-°C';
 
@@ -309,29 +353,36 @@ async function fetchStatus() {
         document.getElementById('valLed1').textContent = led1Active ? 'ON' : 'OFF';
         document.getElementById('valLed2').textContent = led2Active ? 'ON' : 'OFF';
 
-        document.getElementById('led1Dot').className = 'led-dot ' + (led1Active ? 'active-green' : '');
-        document.getElementById('led2Dot').className = 'led-dot ' + (led2Active ? 'active-amber' : '');
+        document.getElementById('led1Dot').className = 'actuator-dot ' + (led1Active ? 'active-green' : '');
+        document.getElementById('led2Dot').className = 'actuator-dot ' + (led2Active ? 'active-amber' : '');
 
         const badgeHealth = document.getElementById('badgeHealth');
         if (cur.tripped) {
             badgeHealth.textContent = 'TRIPPED';
-            badgeHealth.className = 'badge badge-red';
+            badgeHealth.className = 'badge badge-rose';
         } else if (cur.is_anomaly) {
             badgeHealth.textContent = 'ANOMALY';
             badgeHealth.className = 'badge badge-amber';
         } else {
             badgeHealth.textContent = 'Healthy';
-            badgeHealth.className = 'badge badge-green';
+            badgeHealth.className = 'badge badge-emerald';
         }
 
         const banner = document.getElementById('statusBanner');
         const bannerText = document.getElementById('bannerText');
+        const rawMsg = cur.is_anomaly || cur.tripped
+            ? `System Alert: ${cur.anomaly_reason || (cur.tripped ? 'Emergency Overheat Tripped' : 'Telemetry Anomaly')}`
+            : (cur.recommendation || `System Status: Regulating toward Setpoint (${currentTargetTemp}°C)`);
+        
+        // Ensure clean text without legacy emojis
+        const sanitizedMsg = String(rawMsg).replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '').trim();
+
         if (cur.is_anomaly || cur.tripped) {
             banner.className = 'banner banner-alert';
-            bannerText.textContent = `⚠️ ALERT: ${cur.anomaly_reason || (cur.tripped ? 'System Overheat Tripped' : 'Anomaly')}`;
+            bannerText.textContent = sanitizedMsg;
         } else {
             banner.className = 'banner banner-normal';
-            bannerText.textContent = `${cur.recommendation || 'Regulating toward Target Setpoint...'}`;
+            bannerText.textContent = sanitizedMsg;
         }
 
         document.getElementById('lastUpdated').textContent = new Date().toLocaleTimeString();
