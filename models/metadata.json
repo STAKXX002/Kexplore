@@ -1,27 +1,26 @@
 {
     "features": [
-        "sensor_1_temp",
-        "s1_temp_lag1",
-        "s1_temp_lag2",
-        "s1_delta",
-        "s1_rolling_mean",
-        "sensor_2_temp",
-        "s2_temp_lag1",
-        "s2_temp_lag2",
-        "s2_delta",
-        "s2_rolling_mean",
-        "sensor_diff",
-        "sensor_1_hum",
-        "sensor_2_hum",
-        "load_1_state"
+        "temperature",
+        "temp_lag1",
+        "temp_lag2",
+        "temp_delta",
+        "temp_rolling",
+        "light",
+        "light_lag1",
+        "light_delta",
+        "solar_thermal_flux",
+        "led_1"
     ],
+    "input_dim": 10,
+    "latent_dim": 3,
     "metrics": {
-        "r2_score": 0.9118,
-        "mae": 0.3266
+        "xgboost_r2": 0.8885,
+        "xgboost_mae": 0.1769,
+        "autoencoder_threshold": 0.24091
     },
     "thresholds": {
         "temp_trip_threshold": 32.0,
         "ai_predictive_cooling_threshold": 30.2,
-        "sensor_discrepancy_limit": 5.0
+        "smart_light_min_threshold": 35.0
     }
 }

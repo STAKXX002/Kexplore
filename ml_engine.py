@@ -1,7 +1,7 @@
 """
-Real-Time AI/ML Engine for Dual-Sensor IoT Predictive Control and Anomaly Detection.
-Maintains rolling window of sensor readings, computes dynamic lag features,
-runs model inferences, and dispatches proactive control signals for actuators/LEDs.
+Real-Time Multi-Modal AI Engine (XGBoost + PyTorch Deep Autoencoder).
+Heterogeneous Sensor Fusion: Temperature (°C) + Light/LDR (%).
+Dual Actuation: LED 1 (Thermal/Cooling) + LED 2 (Smart Illumination/Alert).
 """
 
 import os
@@ -10,234 +10,357 @@ import joblib
 import numpy as np
 import pandas as pd
 from collections import deque
+import xgboost as xgb
+import torch
+import torch.nn as nn
+
+# Re-use exact PyTorch Autoencoder definition
+class MultimodalAutoencoder(nn.Module):
+    def __init__(self, input_dim=10, latent_dim=3):
+        super(MultimodalAutoencoder, self).__init__()
+        self.encoder = nn.Sequential(
+            nn.Linear(input_dim, 16),
+            nn.LeakyReLU(0.1),
+            nn.Linear(16, 8),
+            nn.LeakyReLU(0.1),
+            nn.Linear(8, latent_dim)
+        )
+        self.decoder = nn.Sequential(
+            nn.Linear(latent_dim, 8),
+            nn.LeakyReLU(0.1),
+            nn.Linear(8, 16),
+            nn.LeakyReLU(0.1),
+            nn.Linear(16, input_dim)
+        )
+
+    def forward(self, x):
+        return self.decoder(self.encoder(x))
 
 class MLEngine:
     def __init__(self, models_dir="models"):
         self.models_dir = models_dir
-        self.predictor = None
-        self.anomaly_detector = None
+        self.xgb_model = None
+        self.autoencoder = None
+        self.scaler = None
         self.metadata = {}
-        self.control_mode = "AI_PREDICTIVE"  # Default: "AI_PREDICTIVE", can toggle to "CLASSICAL"
+        self.recon_threshold = 0.25
+        self.control_mode = "AI_PREDICTIVE"
         
-        # Sliding buffer for incoming telemetry (holds up to 20 samples)
-        self.history = deque(maxlen=20)
+        # Configurable Dynamic Thresholds & Target Setpoints
+        self.target_temp = 27.0          # Desired target temperature setpoint (°C)
+        self.target_light = 50.0         # Desired target illumination setpoint (%)
+        self.temp_trip_threshold = 32.0  # Emergency safety ceiling (°C)
+        self.ai_cooling_threshold = 30.2 # Preemptive cooling trigger (°C)
+        self.light_min_threshold = 35.0  # Daylight threshold (%)
         
-        # State tracking
+        # History buffer for lag and rolling features
+        self.history = deque(maxlen=25)
+        
+        # Actuator states
+        self.led_1 = 0      # Thermal Relay / Cooling (1: ON/Heating, 0: OFF/Cooling)
+        self.led_2 = 0      # Smart Illumination (1: ON, 0: OFF)
         self.tripped = False
-        self.load_1 = 0
-        self.load_2 = 0
         
         self._load_models()
 
     def _load_models(self):
-        pred_path = os.path.join(self.models_dir, "model_predictor.pkl")
-        iso_path = os.path.join(self.models_dir, "model_anomaly.pkl")
+        xgb_path = os.path.join(self.models_dir, "model_xgboost.json")
+        ae_path = os.path.join(self.models_dir, "model_autoencoder.pth")
+        scaler_path = os.path.join(self.models_dir, "scaler.pkl")
         meta_path = os.path.join(self.models_dir, "metadata.json")
-        
-        if os.path.exists(pred_path) and os.path.exists(iso_path):
-            self.predictor = joblib.load(pred_path)
-            self.anomaly_detector = joblib.load(iso_path)
+
+        if os.path.exists(xgb_path) and os.path.exists(ae_path) and os.path.exists(scaler_path):
+            # 1. Load XGBoost
+            self.xgb_model = xgb.XGBRegressor()
+            self.xgb_model.load_model(xgb_path)
+            
+            # 2. Load Feature Scaler
+            self.scaler = joblib.load(scaler_path)
+            
+            # 3. Load Metadata
             if os.path.exists(meta_path):
                 with open(meta_path, "r") as f:
                     self.metadata = json.load(f)
-            print("[ML Engine] Pre-trained models loaded successfully.")
+                    self.recon_threshold = self.metadata.get("metrics", {}).get("autoencoder_threshold", 0.25)
+                    thresholds = self.metadata.get("thresholds", {})
+                    self.temp_trip_threshold = thresholds.get("temp_trip_threshold", 32.0)
+                    self.ai_cooling_threshold = thresholds.get("ai_predictive_cooling_threshold", 30.2)
+                    self.light_min_threshold = thresholds.get("smart_light_min_threshold", 35.0)
+
+            # 4. Load PyTorch Autoencoder
+            input_dim = self.metadata.get("input_dim", 10)
+            latent_dim = self.metadata.get("latent_dim", 3)
+            self.autoencoder = MultimodalAutoencoder(input_dim=input_dim, latent_dim=latent_dim)
+            self.autoencoder.load_state_dict(torch.load(ae_path, map_location=torch.device('cpu')))
+            self.autoencoder.eval()
+
+            print("[ML Engine] XGBoost and PyTorch Deep Autoencoder loaded successfully.")
         else:
-            print("[ML Engine] Models not found. Run 'train_models.py' first.")
+            print("[ML Engine] Model weights not found. Run 'train_models.py' first.")
+
+    def update_thresholds(self, temp_trip=None, ai_cooling=None, light_min=None, target_temp=None, target_light=None):
+        """Dynamically reconfigures trip, actuation thresholds, and target setpoints via API request."""
+        if temp_trip is not None:
+            self.temp_trip_threshold = round(float(temp_trip), 2)
+        if ai_cooling is not None:
+            self.ai_cooling_threshold = round(float(ai_cooling), 2)
+        if light_min is not None:
+            self.light_min_threshold = round(float(light_min), 2)
+        if target_temp is not None:
+            self.target_temp = round(float(target_temp), 2)
+        if target_light is not None:
+            self.target_light = round(float(target_light), 2)
+        print(f"[ML Engine] Updated via API: Target={self.target_temp}C | Trip={self.temp_trip_threshold}C | Target Light={self.target_light}%")
+        return self.get_thresholds()
+
+    def update_target(self, target_temp=None, target_light=None):
+        """Sets the active goal target that AI model predictive control regulates toward."""
+        if target_temp is not None:
+            self.target_temp = round(float(target_temp), 2)
+        if target_light is not None:
+            self.target_light = round(float(target_light), 2)
+        print(f"[ML Engine] Target Setpoint Updated: Temp Target={self.target_temp}C | Light Target={self.target_light}%")
+        return self.get_target()
+
+    def get_target(self):
+        """Returns active goal target setpoints."""
+        return {
+            "target_temp": self.target_temp,
+            "target_light": self.target_light
+        }
+
+    def get_thresholds(self):
+        """Returns currently active threshold configuration & target setpoints."""
+        return {
+            "target_temp": self.target_temp,
+            "target_light": self.target_light,
+            "temp_trip_threshold": self.temp_trip_threshold,
+            "ai_cooling_threshold": self.ai_cooling_threshold,
+            "light_min_threshold": self.light_min_threshold,
+            "recon_threshold": self.recon_threshold
+        }
 
     def set_control_mode(self, mode: str):
-        """Toggle between 'AI_PREDICTIVE' and 'CLASSICAL'."""
         if mode in ["AI_PREDICTIVE", "CLASSICAL"]:
             self.control_mode = mode
-            print(f"[ML Engine] Control mode switched to: {self.control_mode}")
+            print(f"[ML Engine] Switched mode to: {self.control_mode}")
             return True
         return False
 
-    def process_telemetry(self, s1_temp: float, s1_hum: float, s2_temp: float, s2_hum: float):
+    def process_telemetry(self, temperature: float, light: float):
         """
-        Processes new dual-sensor telemetry reading and generates control signals.
+        Processes new multi-modal telemetry reading:
+        - Temperature in °C
+        - Light / LDR in % (0 - 100)
         """
-        # Store current reading in rolling history
         sample = {
-            "s1_temp": float(s1_temp),
-            "s1_hum": float(s1_hum),
-            "s2_temp": float(s2_temp),
-            "s2_hum": float(s2_hum),
-            "load_1": self.load_1
+            "temperature": float(temperature),
+            "light": float(light),
+            "led_1": self.led_1
         }
         self.history.append(sample)
-        
-        # Default fallback values if not enough history
-        predicted_temp = round(s1_temp, 2)
+
+        predicted_temp = round(temperature, 2)
         is_anomaly = False
-        anomaly_score = 0.0
+        recon_loss = 0.0
         anomaly_reason = "Normal"
-        
-        # Check rule-based sanity checks first (e.g. cross-sensor divergence)
-        sensor_diff = abs(s1_temp - s2_temp)
-        if sensor_diff > 5.5:
+
+        # Heuristic cross-sensor sanity checks
+        if light <= 10.0 and temperature >= 32.0:
             is_anomaly = True
-            anomaly_reason = f"Cross-Sensor Divergence ({sensor_diff:.1f}°C diff)"
-        elif s1_temp > 45.0 or s2_temp > 45.0:
-            is_anomaly = True
-            anomaly_reason = "Extreme Temperature Spike"
-            
-        # Run ML models if available and enough history exists
-        if len(self.history) >= 4 and self.predictor is not None and self.anomaly_detector is not None:
+            anomaly_reason = "Abnormal Thermal Runaway in Darkness (Fire/Fault Risk)"
+        elif light <= 0.5 or light >= 99.5:
+            if len(self.history) >= 4 and abs(self.history[-1]["temperature"] - self.history[-3]["temperature"]) < 0.5:
+                # Potential sensor saturation/disconnect
+                is_anomaly = True
+                anomaly_reason = "LDR Light Sensor Saturation / Disconnect Fault"
+
+        # Multi-modal Model Inferences
+        if len(self.history) >= 4 and self.xgb_model is not None and self.autoencoder is not None:
             features = self._extract_live_features()
-            
+
             try:
-                # 1. Predictive Regressor: Forecast t+5
-                preds = self.predictor.predict(features)
+                # 1. XGBoost Regressor (t+5 Prediction)
+                preds = self.xgb_model.predict(features.values)
                 predicted_temp = round(float(preds[0]), 2)
-                
-                # 2. Isolation Forest Outlier Detection
-                iso_pred = self.anomaly_detector.predict(features)[0]
-                iso_score = float(self.anomaly_detector.decision_function(features)[0])
-                anomaly_score = round(iso_score, 3)
-                
-                if iso_pred == -1 and not is_anomaly:
+
+                # 2. PyTorch Deep Autoencoder (Reconstruction Loss Anomaly Scoring)
+                features_scaled = self.scaler.transform(features.values)
+                tensor_in = torch.tensor(features_scaled, dtype=torch.float32)
+
+                with torch.no_grad():
+                    recons = self.autoencoder(tensor_in).numpy()
+                    mse = float(np.mean(np.square(features_scaled - recons)))
+                    recon_loss = round(mse, 5)
+
+                if recon_loss > self.recon_threshold:
                     is_anomaly = True
-                    anomaly_reason = "Multivariate Anomaly (Isolation Forest)"
+                    if anomaly_reason == "Normal":
+                        anomaly_reason = f"Neural Autoencoder Anomaly (Loss: {recon_loss} > {self.recon_threshold:.4f})"
+
             except Exception as e:
-                print(f"[ML Engine Error] Inference failed: {e}")
+                print(f"[ML Engine Error] Inference error: {e}")
 
-        # Compute Control Signals based on selected mode
+        # Compute Dual Actuator Control Policy
         if self.control_mode == "AI_PREDICTIVE":
-            control_signals = self._compute_ai_control(s1_temp, s2_temp, predicted_temp, is_anomaly)
+            control_signals = self._compute_ai_control(temperature, light, predicted_temp, is_anomaly, recon_loss)
         else:
-            control_signals = self._compute_classical_control(s1_temp, s2_temp)
+            control_signals = self._compute_classical_control(temperature, light)
 
-        # Update internal load state
-        self.load_1 = control_signals["led_1"]
-        self.load_2 = control_signals["led_2"]
+        self.led_1 = control_signals["led_1"]
+        self.led_2 = control_signals["led_2"]
         self.tripped = control_signals["tripped"]
 
         return {
             "predicted_temp": predicted_temp,
+            "recon_loss": recon_loss,
             "is_anomaly": is_anomaly,
-            "anomaly_score": anomaly_score,
             "anomaly_reason": anomaly_reason,
             "control_mode": self.control_mode,
-            "led_1": self.load_1,             # Actuator 1: Primary Load (e.g. Heating or Relay)
-            "led_2": self.load_2,             # Actuator 2: Safety Warning / Trip Alarm
-            "load_state": "ON" if self.load_1 == 1 else "OFF",
+            "target_temp": self.target_temp,
+            "target_light": self.target_light,
+            "temp_error": round(temperature - self.target_temp, 2),
+            "target_achieved": abs(temperature - self.target_temp) <= 0.35,
+            "led_1": self.led_1,
+            "led_2": self.led_2,
+            "load_state": "ON" if self.led_1 == 1 else "OFF",
+            "smart_light_state": "ON" if self.led_2 == 1 else "OFF",
             "tripped": self.tripped,
             "recommendation": control_signals["recommendation"]
         }
 
     def _extract_live_features(self):
-        """Constructs single-row DataFrame matching the exact training feature space."""
         h = list(self.history)
         cur = h[-1]
         lag1 = h[-2]
         lag2 = h[-3]
-        
-        s1_rolling = np.mean([x["s1_temp"] for x in h[-4:]])
-        s2_rolling = np.mean([x["s2_temp"] for x in h[-4:]])
-        
+
+        temp_rolling = np.mean([x["temperature"] for x in h[-4:]])
+        solar_flux = round(cur["temperature"] * (cur["light"] / 100.0), 2)
+
         row = {
-            "sensor_1_temp": cur["s1_temp"],
-            "s1_temp_lag1": lag1["s1_temp"],
-            "s1_temp_lag2": lag2["s1_temp"],
-            "s1_delta": cur["s1_temp"] - lag1["s1_temp"],
-            "s1_rolling_mean": s1_rolling,
-            "sensor_2_temp": cur["s2_temp"],
-            "s2_temp_lag1": lag1["s2_temp"],
-            "s2_temp_lag2": lag2["s2_temp"],
-            "s2_delta": cur["s2_temp"] - lag1["s2_temp"],
-            "s2_rolling_mean": s2_rolling,
-            "sensor_diff": abs(cur["s1_temp"] - cur["s2_temp"]),
-            "sensor_1_hum": cur["s1_hum"],
-            "sensor_2_hum": cur["s2_hum"],
-            "load_1_state": lag1["load_1"]
+            "temperature": cur["temperature"],
+            "temp_lag1": lag1["temperature"],
+            "temp_lag2": lag2["temperature"],
+            "temp_delta": cur["temperature"] - lag1["temperature"],
+            "temp_rolling": temp_rolling,
+            "light": cur["light"],
+            "light_lag1": lag1["light"],
+            "light_delta": cur["light"] - lag1["light"],
+            "solar_thermal_flux": solar_flux,
+            "led_1": lag1["led_1"]
         }
         return pd.DataFrame([row])
 
-    def _compute_ai_control(self, s1_temp: float, s2_temp: float, predicted_temp: float, is_anomaly: bool):
+    def _compute_ai_control(self, temperature: float, light: float, predicted_temp: float, is_anomaly: bool, recon_loss: float):
         """
-        Intelligent Proactive Control Policy:
-        - Anticipates thermal breaches at t+5.
-        - Sheds load BEFORE threshold breach (at 30.2°C forecast), avoiding harsh trips.
+        AI Model Predictive Control (MPC) Target Setpoint Regulation Policy:
+        - Uses XGBoost future trajectory forecast to achieve and hold self.target_temp.
+        - Shuts off thermal load early (anticipatory cut-off) to prevent overshoot.
+        - Regulates smart illumination toward self.target_light.
+        - Emergency trip and anomaly safeguards act as supervisory overrides.
         """
-        max_temp = max(s1_temp, s2_temp)
-        
-        # 1. Anomaly response: Safety alert
+        # Actuator 2: Smart Daylight Harvesting toward target illumination
+        led_2 = 1 if (light < self.target_light or is_anomaly or self.tripped) else 0
+
+        # 1. Anomaly safeguard override
         if is_anomaly:
             return {
                 "led_1": 0,
                 "led_2": 1,
                 "tripped": False,
-                "recommendation": "ALERT: Anomaly detected, load suppressed for hardware safety."
+                "recommendation": "SAFETY ALERT: Deep Autoencoder detected anomalous pattern. Thermal load cut off."
             }
-            
-        # 2. Emergency hardware trip threshold (32.0°C)
-        if max_temp >= 32.0:
+
+        # 2. Emergency trip ceiling override
+        if temperature >= self.temp_trip_threshold:
             self.tripped = True
             return {
                 "led_1": 0,
                 "led_2": 1,
                 "tripped": True,
-                "recommendation": "CRITICAL: Hard threshold breach (≥32.0°C). System Tripped!"
+                "recommendation": f"CRITICAL: Emergency trip threshold breach (≥{self.temp_trip_threshold}°C). System Tripped!"
             }
-            
-        # 3. AI Early Proactive Action: Forecast indicates imminent overheat
-        if predicted_temp >= 30.4 or max_temp >= 30.2:
+
+        # 3. Preemptive Overheat Protection (Safety boundary)
+        if predicted_temp >= self.ai_cooling_threshold or temperature >= (self.ai_cooling_threshold - 0.2):
             return {
                 "led_1": 0,
-                "led_2": 0,
+                "led_2": led_2,
                 "tripped": False,
-                "recommendation": f"AI PROACTIVE ACTION: Forecast ({predicted_temp}°C) indicates heating trend. Load shed early to avoid trip."
+                "recommendation": f"XGBOOST PREEMPTIVE COOLING: Overheat avoidance ({predicted_temp}°C ≥ {self.ai_cooling_threshold}°C)."
             }
-            
-        # 4. Normal proactive operation
-        if self.tripped and max_temp < 28.5:
+
+        if self.tripped and temperature < (self.temp_trip_threshold - 3.5):
             self.tripped = False
-            
-        led_1 = 1 if (not self.tripped and max_temp <= 29.5) else 0
+
+        # 4. AI-Driven Target Point Regulation (XGBoost MPC Setpoint Regulation)
+        temp_error = round(temperature - self.target_temp, 2)
+        is_at_target = abs(temp_error) <= 0.35
+
+        if not self.tripped:
+            if is_at_target:
+                # Target achieved! Use XGBoost forecast to hold setpoint tightly
+                if predicted_temp > (self.target_temp + 0.15):
+                    led_1 = 0
+                    rec_text = f"🎯 TARGET LOCKED ({self.target_temp}°C): AI coasting load to prevent overshoot."
+                elif predicted_temp < (self.target_temp - 0.25):
+                    led_1 = 1
+                    rec_text = f"🎯 TARGET REGULATING: Applying micro-pulse to sustain {self.target_temp}°C."
+                else:
+                    led_1 = 0
+                    rec_text = f"🎯 TARGET ACHIEVED ({temperature:.1f}°C): Operating precisely at {self.target_temp}°C setpoint."
+            elif temperature < self.target_temp:
+                # Below target: check if XGBoost predicts future thermal momentum will coast into target
+                if predicted_temp >= self.target_temp:
+                    led_1 = 0 # Preemptive deactivation: residual momentum will reach target!
+                    rec_text = f"AI PREDICTIVE CONTROL: Forecast ({predicted_temp}°C) indicates thermal coasting to {self.target_temp}°C. Early shut-off."
+                else:
+                    led_1 = 1 # Drive temperature toward target
+                    rec_text = f"AI TARGET TRACKING: Driving temperature toward {self.target_temp}°C (Current: {temperature:.1f}°C)."
+            else:
+                # Above target: shed heat to descend toward setpoint
+                led_1 = 0
+                rec_text = f"AI REGULATING TO TARGET: Shedding heat to descend to {self.target_temp}°C (Current: {temperature:.1f}°C)."
+        else:
+            led_1 = 0
+            rec_text = f"TRIPPED: Cooling down below safety reset threshold."
+
         return {
             "led_1": led_1,
-            "led_2": 0,
+            "led_2": led_2,
             "tripped": self.tripped,
-            "recommendation": "OPTIMAL: Operating within AI energy-efficient bounds."
+            "recommendation": rec_text
         }
 
-    def _compute_classical_control(self, s1_temp: float, s2_temp: float):
-        """
-        Classical Reactive Threshold Policy:
-        - Completely reactive: waits until temperature physically hits or exceeds 32.0°C.
-        """
-        max_temp = max(s1_temp, s2_temp)
-        
-        if max_temp >= 32.0:
+    def _compute_classical_control(self, temperature: float, light: float):
+        """Classical bang-bang control (no predictive compensation; causes overshoot)."""
+        if temperature >= self.temp_trip_threshold:
             self.tripped = True
             return {
                 "led_1": 0,
                 "led_2": 1,
                 "tripped": True,
-                "recommendation": "CLASSICAL RULE: Overheat limit reached (≥32°C). Relay OFF, Trip LED ON."
+                "recommendation": f"CLASSICAL RULE: Overheat limit (≥{self.temp_trip_threshold}°C). Tripped."
             }
-            
-        if self.tripped and max_temp < 29.0:
+
+        if self.tripped and temperature < (self.temp_trip_threshold - 3.0):
             self.tripped = False
             return {
                 "led_1": 1,
                 "led_2": 0,
                 "tripped": False,
-                "recommendation": "CLASSICAL RULE: Recovered below 29°C. Relay reset ON."
+                "recommendation": f"CLASSICAL RULE: Reset below {self.temp_trip_threshold - 3.0}°C."
             }
-            
-        if not self.tripped:
-            led_1 = 1 if max_temp >= 28.0 else 0
-            return {
-                "led_1": led_1,
-                "led_2": 0,
-                "tripped": False,
-                "recommendation": f"CLASSICAL RULE: Static threshold check. Load: {'ON' if led_1 else 'OFF'}."
-            }
-            
+
+        # Reactive thermostat: turns off only AFTER crossing target
+        led_1 = 1 if (not self.tripped and temperature < self.target_temp) else 0
+        led_2 = 1 if light < self.target_light else 0
+
+        status_text = "Heater ON (Below target)" if led_1 == 1 else "Heater OFF (Above target)"
         return {
-            "led_1": 0,
-            "led_2": 1,
-            "tripped": True,
-            "recommendation": "CLASSICAL RULE: Waiting to cool down below 29°C."
+            "led_1": led_1,
+            "led_2": led_2,
+            "tripped": self.tripped,
+            "recommendation": f"CLASSICAL BANG-BANG: {status_text}. No predictive compensation."
         }
