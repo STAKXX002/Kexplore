@@ -1,8 +1,8 @@
 """
 Modular Arduino Hardware Communication Bridge (Temperature + Light/LDR).
 Isolates all physical serial communication with the Arduino board.
-Forwards temperature and light/LDR readings to receiver.py and sends back
-dual LED actuation signals (LED 1: Cooling, LED 2: Smart Illumination).
+Forwards temperature and light/LDR readings to central controller and sends back
+dual LED actuation signals (LED 1: Thermal Load, LED 2: Smart Illumination).
 """
 
 import time
@@ -12,18 +12,22 @@ import argparse
 import sys
 
 try:
+    from src.config import SERVER_URL, DEFAULT_BAUD
+except ImportError:
+    from config import SERVER_URL, DEFAULT_BAUD
+
+try:
     import serial
     import serial.tools.list_ports
 except ImportError:
     print("[ERROR] pyserial is not installed. Run: pip install pyserial")
     sys.exit(1)
 
-DEFAULT_SERVER_URL = "http://127.0.0.1:5000/telemetry"
-DEFAULT_BAUD = 9600
 
 def list_available_ports():
     ports = list(serial.tools.list_ports.comports())
     return [p.device for p in ports]
+
 
 def auto_detect_port():
     ports = list(serial.tools.list_ports.comports())
@@ -34,6 +38,7 @@ def auto_detect_port():
         if "arduino" in desc or "ch340" in desc or "usb-serial" in desc or "usb serial" in desc:
             return p.device
     return ports[0].device
+
 
 def parse_sensor_line(line_str):
     """
@@ -89,11 +94,12 @@ def parse_sensor_line(line_str):
 
     return None
 
-def run_bridge(port=None, baud=DEFAULT_BAUD, server_url=DEFAULT_SERVER_URL):
+
+def run_bridge(port=None, baud=DEFAULT_BAUD, server_url=SERVER_URL):
     print("=" * 65)
     print("  Arduino Hardware Bridge (Temperature & Light/LDR Controller) ")
     print("=" * 65)
-    
+
     if port is None:
         port = auto_detect_port()
 
@@ -104,7 +110,7 @@ def run_bridge(port=None, baud=DEFAULT_BAUD, server_url=DEFAULT_SERVER_URL):
             print(f"Available ports: {', '.join(available)}")
         else:
             print("No serial devices found. Please plug in your Arduino USB cable.")
-        print("You can test without hardware using: python syn_sender.py\n")
+        print("You can test without hardware using: python run_simulator.py\n")
         return
 
     print(f"[Bridge Config] Target Serial Port: {port} @ {baud} baud")
@@ -143,7 +149,8 @@ def run_bridge(port=None, baud=DEFAULT_BAUD, server_url=DEFAULT_SERVER_URL):
                 payload = {
                     "timestamp": int(time.time() * 1000),
                     "temperature": temp,
-                    "light": light
+                    "light": light,
+                    "source": f"arduino:{port}"
                 }
 
                 try:
@@ -153,15 +160,15 @@ def run_bridge(port=None, baud=DEFAULT_BAUD, server_url=DEFAULT_SERVER_URL):
                         ctrl = res_data.get("control_signal", {})
                         insights = res_data.get("ai_insights", {})
 
-                        led_1 = ctrl.get("led_1", 0)  # Thermal Cooling
+                        led_1 = ctrl.get("led_1", 0)  # Thermal Load
                         led_2 = ctrl.get("led_2", 0)  # Smart Lighting
                         mode = ctrl.get("mode", "UNKNOWN")
                         pred_t = insights.get("predicted_temp", temp)
                         recon_err = insights.get("recon_loss", 0.0)
                         is_anom = insights.get("is_anomaly", False)
 
-                        print(f"[TELEMETRY] Temp: {temp}°C | Light: {light}%  ==>  [XGB Pred: {pred_t}°C | Loss: {recon_err} | Anomaly: {is_anom}]")
-                        print(f"[ACTUATE]   LED 1 (Cooling): {led_1} | LED 2 (Smart Light): {led_2} | Policy: {mode}\n")
+                        print(f"[TELEMETRY] Temp: {temp}C | Light: {light}%  ==>  [XGB Pred: {pred_t}C | Loss: {recon_err} | Anomaly: {is_anom}]")
+                        print(f"[ACTUATE]   LED 1 (Thermal Load): {led_1} | LED 2 (Smart Light): {led_2} | Policy: {mode}\n")
 
                         # Send actuation command to Arduino
                         cmd = f'{{"led_1":{led_1},"led_2":{led_2}}}\n'
@@ -183,11 +190,12 @@ def run_bridge(port=None, baud=DEFAULT_BAUD, server_url=DEFAULT_SERVER_URL):
             pass
         print("[Bridge] Closed cleanly.")
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Arduino Multi-Modal Bridge")
     parser.add_argument("--port", type=str, default=None, help="Serial port (e.g. COM3)")
-    parser.add_argument("--baud", type=int, default=9600, help="Baud rate (default 9600)")
-    parser.add_argument("--url", type=str, default=DEFAULT_SERVER_URL, help="Server URL")
+    parser.add_argument("--baud", type=int, default=DEFAULT_BAUD, help="Baud rate (default 9600)")
+    parser.add_argument("--url", type=str, default=SERVER_URL, help="Server URL")
     args = parser.parse_args()
 
     run_bridge(port=args.port, baud=args.baud, server_url=args.url)

@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Modal AI IoT Controller</title>
+    <link rel="stylesheet" href="/static/css/dashboard.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+    <div class="dashboard-container">
+        <!-- Header -->
+        <div class="header">
+            <div class="header-title">
+                <h1>Multi-Modal AI IoT Controller</h1>
+                <p>AI Model Predictive Target Tracking • Solar-Thermal Cross-Forecasting • Neural Anomaly Safeguard</p>
+            </div>
+            <div class="header-right">
+                <div class="link-pill" title="Telemetry link heartbeat">
+                    <div id="pulseDot" class="pulse-dot"></div>
+                    <span id="linkText">No data</span>
+                    <span id="tagS1" class="sensor-tag none" title="Sensor 1: Temperature">S1</span>
+                    <span id="tagS2" class="sensor-tag none" title="Sensor 2: Light / LDR">S2</span>
+                </div>
+                <span class="badge badge-purple" style="font-size: 11px; padding: 4px 10px;">AI Mode</span>
+                <button class="btn-ghost" onclick="openSummary()">📊 Session Summary</button>
+                <a class="btn-ghost" href="/api/export-csv">📥 Export CSV</a>
+            </div>
+        </div>
+
+        <!-- Status Banner -->
+        <div id="statusBanner" class="banner banner-normal">
+            <span id="bannerText">System Status: Regulating toward Target Setpoint...</span>
+            <span id="lastUpdated" style="font-size: 11px; opacity: 0.8;">Syncing...</span>
+        </div>
+
+        <!-- 4 Balanced Metric Cards -->
+        <div class="grid-cards">
+            <!-- Card 1: Temperature Sensor & Goal Target -->
+            <div class="card">
+                <div class="card-label">
+                    <span>Temperature Sensor</span>
+                    <span class="badge badge-green" id="badgeTargetOffset">Target: 27.0°C</span>
+                </div>
+                <div class="card-value" id="valTemp">--.-°C</div>
+                <div class="card-footer">
+                    <span id="subtextTempTrip">🎯 Setpoint: 27.0°C</span>
+                    <div class="led-pill">
+                        <div id="led1Dot" class="led-dot"></div>
+                        <span>Thermal Load: <strong id="valLed1">OFF</strong></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Card 2: Light / LDR Sensor & Illumination Target -->
+            <div class="card">
+                <div class="card-label">
+                    <span>Light (LDR) Sensor</span>
+                    <span class="badge badge-amber" id="badgeLightTarget">Target: 50%</span>
+                </div>
+                <div class="card-value" id="valLight">--.-%</div>
+                <div class="card-footer">
+                    <span id="subtextLight">Harvesting: --</span>
+                    <div class="led-pill">
+                        <div id="led2Dot" class="led-dot"></div>
+                        <span>Light: <strong id="valLed2">OFF</strong></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Card 3: XGBoost Predictive Forecaster -->
+            <div class="card">
+                <div class="card-label">
+                    <span>XGBoost Forecast (t+5)</span>
+                    <span class="badge badge-purple">MPC Foresight</span>
+                </div>
+                <div class="card-value" id="valPredTemp" style="color: var(--accent-purple);">--.-°C</div>
+                <div class="card-footer">
+                    <span>Anticipates inertia</span>
+                    <span class="badge badge-purple" id="badgePreempt" style="font-size: 10px;">Preempt: 30.2°C</span>
+                </div>
+            </div>
+
+            <!-- Card 4: PyTorch Deep Autoencoder -->
+            <div class="card">
+                <div class="card-label">
+                    <span>Autoencoder Anomaly Loss</span>
+                    <span id="badgeLoss" class="badge badge-pink">Neural MSE</span>
+                </div>
+                <div class="card-value" id="valReconLoss" style="color: var(--accent-pink);">0.0000</div>
+                <div class="card-footer">
+                    <span id="subtextRecon">Threshold: 0.2409</span>
+                    <span id="badgeHealth" class="badge badge-green">Healthy</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- AI Performance Ribbon -->
+        <div class="perf-bar">
+            <div class="perf-item" title="Share of load-ON time the AI avoided compared with a classical thermostat evaluated on the same temperature readings (AI-mode samples only).">
+                <div class="perf-value" id="perfDuty" style="color: var(--accent-green);">--</div>
+                <div class="perf-text">
+                    <span class="perf-label">Load Duty Saved</span>
+                    <span class="perf-sub" id="perfDutySub">AI vs shadow thermostat</span>
+                </div>
+            </div>
+            <div class="perf-item" title="Share of the last 100 samples within ±0.35°C of the target setpoint.">
+                <div class="perf-value" id="perfStability" style="color: var(--accent-cyan);">--</div>
+                <div class="perf-text">
+                    <span class="perf-label">Setpoint Stability</span>
+                    <span class="perf-sub" id="perfStabilitySub">within ±0.35°C band</span>
+                </div>
+            </div>
+            <div class="perf-item" title="Average server-side time for feature engineering + XGBoost + Autoencoder + control policy (last 20 samples).">
+                <div class="perf-value" id="perfLatency" style="color: var(--accent-purple);">--</div>
+                <div class="perf-text">
+                    <span class="perf-label">AI Inference Latency</span>
+                    <span class="perf-sub">XGBoost + Autoencoder + policy</span>
+                </div>
+            </div>
+            <div class="perf-item" title="Rate of temperature change over the last few samples.">
+                <div class="perf-value" id="perfMomentum" style="color: var(--accent-amber);">--</div>
+                <div class="perf-text">
+                    <span class="perf-label">Thermal Momentum</span>
+                    <span class="perf-sub" id="perfMomentumSub">dT/dt (°C per minute)</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Real-Time Chart + Audit Trail -->
+        <div class="main-row">
+            <div class="chart-box">
+                <div class="chart-header">
+                    <h3>Real-Time Telemetry, AI Goal Target &amp; Trip Lines</h3>
+                    <span style="font-size: 11px; color: var(--text-muted);">Left: Temp (°C) | Right: Light (%)</span>
+                </div>
+                <div class="chart-canvas-wrap">
+                    <canvas id="multiChart"></canvas>
+                </div>
+            </div>
+
+            <div class="audit-box">
+                <div class="chart-header">
+                    <h3>📋 Event Audit Trail</h3>
+                    <span style="font-size: 10px; color: var(--text-muted);" id="auditCount">0 events</span>
+                </div>
+                <div class="audit-list" id="auditList"></div>
+            </div>
+        </div>
+
+        <!-- Sleek Dynamic Target & Threshold Toolbar -->
+        <div class="threshold-bar">
+            <div class="threshold-title">
+                <span>🎯 Target Setpoints & Safety Limits:</span>
+                <span class="badge badge-green" id="badgeActiveTarget">Target: 27.0°C</span>
+                <span class="badge badge-cyan" id="badgeActiveTrip">Trip: 32.0°C</span>
+            </div>
+            <div class="threshold-inputs-group">
+                <div class="input-item">
+                    <label for="inputTargetTemp">🎯 Target Temp (°C):</label>
+                    <input type="number" id="inputTargetTemp" step="0.1" value="27.0">
+                </div>
+                <div class="input-item">
+                    <label for="inputTargetLight">Target Light (%):</label>
+                    <input type="number" id="inputTargetLight" step="1.0" value="50.0">
+                </div>
+                <div class="input-item">
+                    <label for="inputTempTrip">Trip Limit (°C):</label>
+                    <input type="number" id="inputTempTrip" step="0.1" value="32.0">
+                </div>
+                <div class="input-item">
+                    <label for="inputAiCooling">AI Preempt (°C):</label>
+                    <input type="number" id="inputAiCooling" step="0.1" value="30.2">
+                </div>
+                <button class="btn-apply" onclick="submitThresholds()">Apply</button>
+                <div id="toastThreshold" class="toast-inline"></div>
+            </div>
+        </div>
+
+        <div class="footer">
+            Multi-Modal AI IoT Controller • XGBoost Model Predictive Control • PyTorch Deep Autoencoder Neural Network
+        </div>
+    </div>
+
+    <!-- Session Summary Modal -->
+    <div class="modal-backdrop" id="summaryModal" onclick="if (event.target === this) closeSummary()">
+        <div class="modal">
+            <h3>📊 Lab Run Summary</h3>
+            <div class="summary-grid" id="summaryGrid"></div>
+            <div class="modal-note">
+                Load duty saved compares the AI's LED 1 on-time with what a classical thermostat
+                would have commanded at the same temperature readings.
+            </div>
+            <div class="modal-actions">
+                <a class="btn-ghost" href="/api/export-csv">📥 Download CSV</a>
+                <button class="btn-apply" onclick="closeSummary()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/dashboard.js"></script>
+</body>
+</html>

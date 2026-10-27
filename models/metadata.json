@@ -14,9 +14,9 @@
     "input_dim": 10,
     "latent_dim": 3,
     "metrics": {
-        "xgboost_r2": 0.8885,
-        "xgboost_mae": 0.1769,
-        "autoencoder_threshold": 0.24091
+        "xgboost_r2": 0.9743,
+        "xgboost_mae": 0.2023,
+        "autoencoder_threshold": 0.63278
     },
     "thresholds": {
         "temp_trip_threshold": 32.0,

@@ -1,4 +1,5 @@
 venv/
 __pycache__/
 *.pyc
-sensor_dataset.csv
+sensor_dataset*.csv
+data/sensor_dataset*.csv
